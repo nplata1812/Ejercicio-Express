@@ -5,102 +5,70 @@ const { required } = require("joi");
 const Joi = require("joi");
 const WebSocket = require("ws");
 const ws = new WebSocket("ws://localhost:3000");
+const Message = require("../models/Message");
 
 /* GET users listing. */
 router.get("/messages", function (req, res, next) {
-  let rawdata = fs.readFileSync("./data.json");
-  let mensajes = JSON.parse(rawdata);
-  res.send(mensajes);
+  Message.findAll().then((result) => {
+    res.send(result);
+  });
 });
 
 router.get("/messages/:id", function (req, res, next) {
-  let rawdata = fs.readFileSync("./data.json");
-  let ts = req.params.id;
-  let buscado;
-  let mensajes = JSON.parse(rawdata);
-  mensajes.forEach((element) => {
-    if (element.ts == ts) {
-      buscado = element;
-    }
+  Message.findOne({ where: { ts: req.params.id } }).then((response) => {
+    if (response === null)
+      return res
+        .status(404)
+        .send("The client with the given id was not found.");
+    res.send(response);
   });
-  if (buscado == null) {
-    res.sendStatus(404);
-  } else {
-    res.send(buscado);
-  }
 });
 
 router.post("/messages/", function (req, res, next) {
-  let rawdata = fs.readFileSync("./data.json");
-  let object = JSON.parse(rawdata);
-  console.log("Got body:", req.body);
-  let newData = req.body;
-  response = validateUser(newData);
+  const { error } = validateUser(req.body);
 
-  if (response.error) {
-    res.send(response.error);
-  } else {
-    ws.send(JSON.stringify(newData));
-    object.push(newData);
-    fs.writeFile("./data.json", JSON.stringify(object), (err) => {
-      if (err) console.log("Error writing file:", err);
-    });
-
-    res.sendStatus(200);
+  if (error) {
+    return res.status(400).send(error);
   }
+
+  Message.create({
+    message: req.body.message,
+    author: req.body.author,
+    ts: req.body.ts,
+  }).then((result) => {
+    ws.send(JSON.stringify(result));
+    res.send(result);
+  });
 });
 
 router.delete("/messages/:id", function (req, res, next) {
-  let rawdata = fs.readFileSync("./data.json");
-  let ts = req.params.id;
-  let buscado;
-  let indice;
-  let mensajes = JSON.parse(rawdata);
-  for (let index = 0; index < mensajes.length; index++) {
-    const element = mensajes[index];
-    if (element.ts == ts) {
-      buscado = element;
-      indice = index;
+  id = req.params.id;
+  Message.destroy({
+    where: {
+      ts: id,
+    },
+  }).then((count) => {
+    if (!count) {
+      return res.status(404).send({ error: "No Message with id" });
     }
-  }
-  if (buscado == null) {
-    res.sendStatus(404);
-  } else {
-    mensajes.splice(indice, 1);
-    fs.writeFile("./data.json", JSON.stringify(mensajes), (err) => {
-      if (err) console.log("Error writing file:", err);
-    });
-    res.sendStatus(200);
-  }
+    res.status(204).send();
+  });
 });
 
 router.put("/messages/", function (req, res, next) {
-  let rawdata = fs.readFileSync("./data.json");
-  let object = JSON.parse(rawdata);
-  let buscado;
-  console.log("Got body:", req.body);
-  let newData = req.body;
-  response = validateUser(newData);
-
-  if (response.error) {
-    res.send(response.error);
-  } else {
-    for (let index = 0; index < object.length; index++) {
-      const element = object[index];
-      if (element.ts == newData.ts) {
-        buscado = element;
-        object[index] = newData;
-      }
+  Message.update(
+    { message: req.body.message },
+    {
+      where: {
+        ts: req.body.ts,
+      },
     }
-    if (buscado == null) {
-      res.sendStatus(404);
-    } else {
-      res.sendStatus(200);
+  ).then((count) => {
+    if (!count) {
+      return res.status(404).send({ error: "No Message with id" });
     }
-    fs.writeFile("./data.json", JSON.stringify(object), (err) => {
-      if (err) console.log("Error writing file:", err);
-    });
-  }
+    res.status(204).send();
+  });
 });
 
 function validateUser(user) {

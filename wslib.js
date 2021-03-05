@@ -2,6 +2,7 @@ const WebSocket = require("ws");
 const fs = require("fs");
 const clients = [];
 const messages = [];
+const Message = require("./models/Message");
 const wsConnection = (server) => {
   const wss = new WebSocket.Server({ server });
 
@@ -12,18 +13,14 @@ const wsConnection = (server) => {
       var convertido = JSON.parse(message);
       final = convertido.author + ": " + convertido.message;
       messages.push(final);
-      var newData = JSON.parse(message);
-      jsonReader("./data.json", (err, data) => {
-        if (err) {
-          console.log("Error reading file:", err);
-          return;
-        }
-        data.push(newData);
-        fs.writeFile("./data.json", JSON.stringify(data), (err) => {
-          if (err) console.log("Error writing file:", err);
-        });
+      Message.create({
+        message: convertido.message,
+        author: convertido.author,
+        ts: convertido.ts,
+      }).then((result) => {
+        sendMessages();
+        console.log("New message");
       });
-      sendMessages();
     });
   });
 
